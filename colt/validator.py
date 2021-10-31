@@ -443,9 +443,11 @@ class BaseValidator:
         return Choices(choices)
 
     def _get_value(self, string):
+        """Sets the value"""
         value = self.validate(string)
         if not self._choices.validate(value):
             raise ValidatorErrorNotInChoices("Answer is not in choices")
+        # should already be stripped
         self._string = string
         return value
 
@@ -493,6 +495,8 @@ class DelayedDefaultValidator(BaseValidator):
     def get(self):
         """Return self._value if its set or not!"""
         if self._value is NOT_DEFINED:
+            if self._default is NOT_DEFINED:
+                return self._default
             self.set(self._default)
         return self._value
 
