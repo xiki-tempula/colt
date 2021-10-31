@@ -143,7 +143,7 @@ class ColtDirective(SphinxDirective):
         if hasattr(module, cls):
             obj = getattr(module, cls, None)
             #
-            return obj.colt_user_input
+            return obj.questions
         raise Exception(f"Module '{module_name}' contains no class '{cls}'")
 
 

@@ -4,10 +4,9 @@ from abc import ABCMeta
 from .questions import QuestionASTGenerator
 from .ask import AskQuestions
 from .parser import get_config_from_commandline, get_commandline_parser
-from .lazyimport import LazyImporter
 
 
-__all__ = ("Colt",)
+__all__ = ["Colt"]
 
 
 class ClassProperty:
@@ -64,45 +63,40 @@ def colt_modify_class_dict(clsdict, bases):
        it modifies both the clsdict and its annotations!
     """
     colt_defaults = {
-            '_extend_user_input': classmethod(lambda cls, questions: None),
-            '_user_input': "",
-            '_colt_description': None,
-            '_lazy_imports': None,
+            '_extend_questions': classmethod(lambda cls, questions: None),
+            '_questions': "",
+            '_colt_description': None
     }
 
-    if '_lazy_imports' in clsdict:
-        if not isinstance(clsdict['_lazy_imports'], LazyImporter):
-            raise ValueError("_lazy_imports can only be an LazyImporter")
-
-    if 'colt_user_input' in clsdict and not clsdict.get('_colt_user_input_overwrite'):
-        raise ValueError("Method/value 'colt_user_input' reserved for Colt")
-    if '_colt_user_input_overwrite' in clsdict:
-        del clsdict['_colt_user_input_overwrite']
+    if 'questions' in clsdict and not clsdict.get('_colt_questions_overwrite'):
+        raise ValueError("Method/value 'questions' reserved for Colt")
+    if '_colt_questions_overwrite' in clsdict:
+        del clsdict['_colt_questions_overwrite']
     if '_colt_from_config_no_classmethod' in clsdict:
         if not clsdict.pop('_colt_from_config_no_classmethod'):
             to_classmethod(clsdict, 'from_config')
     else:
         to_classmethod(clsdict, 'from_config')
 
-    clsdict['colt_user_input'] = ClassProperty(lambda cls: cls.generate_user_input_ast())
-    to_classmethod(clsdict, '_extend_user_input')
+    clsdict['questions'] = ClassProperty(lambda cls: cls.generate_questions_ast())
+    to_classmethod(clsdict, '_extend_questions')
     # rewrite that....it is horrible
     if clsdict.get('__annotations__', None) is not None:
-        if clsdict['__annotations__'].get('extend_user_input', None) == 'inherited':
-            if '_extend_user_input' in clsdict:
+        if clsdict['__annotations__'].get('extend_questions', None) == 'inherited':
+            if '_extend_questions' in clsdict:
                 if len(bases) > 0:
-                    clsdict['_extend_user_input'] = join_extend_questions(
-                        getattr(bases[0], '_extend_user_input'),
-                        clsdict['_extend_user_input'])
+                    clsdict['_extend_questions'] = join_extend_questions(
+                        getattr(bases[0], '_extend_questions'),
+                        clsdict['_extend_questions'])
             else:
-                clsdict['_extend_user_input'] = getattr(bases[0], '_extend_user_input')
+                clsdict['_extend_questions'] = getattr(bases[0], '_extend_questions')
             # delete task from annotations, and clean unnecessary annotations!
-            del clsdict['__annotations__']['extend_user_input']
+            del clsdict['__annotations__']['extend_questions']
             if clsdict['__annotations__'] == {}:
                 del clsdict['__annotations__']
     #
     add_defaults_to_dict(clsdict, colt_defaults)
-    delete_inherited_keys(["_user_input"], clsdict)
+    delete_inherited_keys(["_questions"], clsdict)
 
 
 class ColtMeta(ABCMeta):
@@ -113,14 +107,14 @@ class ColtMeta(ABCMeta):
         colt_modify_class_dict(clsdict, bases)
         return ABCMeta.__new__(cls, name, bases, clsdict)
 
-    def generate_user_input_ast(cls):
+    def generate_questions_ast(cls):
         """gentarte QuestionAST object and extend it possibly"""
         main_description = getattr(cls, '_colt_description')
-        questions = QuestionASTGenerator(cls._user_input, comment=main_description)
-        cls._extend_user_input(questions)
+        questions = QuestionASTGenerator(cls._questions, comment=main_description)
+        cls._extend_questions(questions)
         return questions
 
-    def _extend_user_input(cls, questions):
+    def _extend_questions(cls, questions):
         """In case additional questions should be added to the QuesionAST"""
 
 
@@ -128,7 +122,7 @@ class Colt(metaclass=ColtMeta):
     """Base Class for `Colt` classes"""
 
     @classmethod
-    def generate_user_input(cls, config=None, presets=None):
+    def generate_questions(cls, config=None, presets=None):
         """Generate an object to generate the question config
         either from commandline, or from an input file etc.
 
@@ -147,7 +141,7 @@ class Colt(metaclass=ColtMeta):
         AskQuestions
             object to generate the questions config
         """
-        return AskQuestions(cls.colt_user_input, config=config, presets=presets)
+        return AskQuestions(cls.questions, config=config, presets=presets)
 
     @classmethod
     def from_questions(cls, *args, check_only=False, ask_all=False,
@@ -184,7 +178,7 @@ class Colt(metaclass=ColtMeta):
             so from_config should return an instance of the class.
 
         """
-        questions = cls.generate_user_input(config=config, presets=presets)
+        questions = cls.generate_questions(config=config, presets=presets)
         #
         if check_only is True:
             answers = questions.check_only()
@@ -195,7 +189,7 @@ class Colt(metaclass=ColtMeta):
                 answers = questions.generate_input(config, ask_all=ask_all,
                                                    ask_defaults=ask_defaults)
         #
-        return cls._from_config(answers, *args, **kwargs)
+        return cls.from_config(answers, *args, **kwargs)
 
     @classmethod
     def from_config(cls, answer, *args, **kwargs):
@@ -244,9 +238,9 @@ class Colt(metaclass=ColtMeta):
             so from_config should return an instance of the class.
         """
         if as_parser is False:
-            answers = get_config_from_commandline(cls.colt_user_input, description=description,
+            answers = get_config_from_commandline(cls.questions, description=description,
                                                   presets=presets)
-            return cls._from_config(answers, *args, **kwargs)
+            return cls.from_config(answers, *args, **kwargs)
         return CommandlineClassInterface(cls, description=description, presets=presets)
 
     @classmethod
@@ -281,41 +275,8 @@ class Colt(metaclass=ColtMeta):
         AnswerBlock
             colt question obj
         """
-        questions = cls.generate_user_input(config=config, presets=presets)
+        questions = cls.generate_questions(config=config, presets=presets)
         return questions.generate_input(filename, ask_all=ask_all, ask_defaults=ask_defaults)
-
-    @classmethod
-    def _from_config(cls, answer, *args, **kwargs):
-        """Initizialze the class using from_config after loading lazy_imports
-
-        Parameters
-        ----------
-
-        answer: obj
-            Questions config object
-
-        args, kwargs: optional
-            arguments and keyword arguments passed to from_config aside from
-            the questions config
-
-        Returns
-        -------
-        Self
-            Intended to initalize the class using the information provided by the config.
-        """
-        # import lazy modules
-        cls._import_lazy_modules()
-        # call config
-        return cls.from_config(answer, *args, **kwargs)
-
-    @classmethod
-    def _import_lazy_modules(cls):
-        if cls._lazy_imports is None:
-            return
-        # load the modules
-        cls._lazy_imports.load()
-        # set it to None
-        cls._lazy_imports = None
 
 
 class CommandlineInterface:
@@ -328,26 +289,26 @@ class CommandlineInterface:
         raise NotImplementedError
 
     @property
-    def colt_user_input(self):
+    def questions(self):
         raise NotImplementedError
 
     def get_parser(self):
-        return get_commandline_parser(self.colt_user_input, description=self.description)
+        return get_commandline_parser(self.questions, description=self.description)
 
 
 class CommandlineFunctionInterface(CommandlineInterface):
     """Basic Colt class to handle commandline parsing"""
 
-    def __init__(self, function, user_input, description):
+    def __init__(self, function, questions, description):
         """Store the original function"""
         super().__init__(description, function.__name__)
         self._func = function
-        self._user_input = user_input
+        self._questions = questions
         self.__doc__ = self._func.__doc__
 
     @property
-    def colt_user_input(self):
-        return QuestionASTGenerator(self._user_input)
+    def questions(self):
+        return QuestionASTGenerator(self._questions)
 
     def __repr__(self):
         return f"CommandlineFunctionInterface(func={self.name})"
@@ -359,7 +320,7 @@ class CommandlineFunctionInterface(CommandlineInterface):
         if any(len(value) != 0 for value in (args, kwargs)):
             return self._func(*args, **kwargs)
         # call from commandline
-        answers = get_config_from_commandline(self._user_input, description=self.description)
+        answers = get_config_from_commandline(self._questions, description=self.description)
         return self._func(**answers)
 
 
@@ -376,8 +337,8 @@ class CommandlineClassInterface(CommandlineInterface):
         return f"CommandlineClassInterface(cls={self.name})"
 
     @property
-    def colt_user_input(self):
-        return self._cls.colt_user_input
+    def questions(self):
+        return self._cls.questions
 
     def __call__(self, *args, **kwargs):
         """If the function is called with arguments: use it as is
