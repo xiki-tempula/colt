@@ -4,7 +4,7 @@ from .colt import Colt
 
 class HelpFormatterGenerator(Colt):
 
-    _user_input = f"""
+    _questions = f"""
     #
     description =         :: literal
     #
@@ -22,7 +22,7 @@ class HelpFormatterGenerator(Colt):
     #
     short_order = usage, space, comment, space :: list(str) ::  {', '.join(HelpFormatter.blocks)}
     #
-    args_order = pos_args, opt_args, subparser_args :: list(str) :: pos_args, opt_args, subparser_args
+    args_order = {', '.join(HelpFormatter.settings['arg_order'])} :: list(str) ::  {', '.join(HelpFormatter.settings['arg_order'])}
     #
     alias = :: str, optional
     #
@@ -73,8 +73,7 @@ class HelpFormatterGenerator(Colt):
         settings = config.to_dict()
         for key in ('seperator', 'block_seperator'):
             settings[key] = unescape(settings[key])
-        res = remove_none_entries(settings)
-        return res
+        return remove_none_entries(settings)
 
 
 def remove_none_entries(dct):
